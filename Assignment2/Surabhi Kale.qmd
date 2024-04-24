@@ -1,0 +1,189 @@
+---
+title: "Assignment 2 - Quarto HTML Report"
+format: html
+editor: visual
+---
+
+Name: SURABHI SUNIL KALE
+
+DCU Student Number: 23263617
+
+## Analyzing Child Labour and Adolescent Health: A Data Story
+
+## **Executive Summary**
+
+Child labour remains a significant global challenge. This report sheds light on the potential interplay between economic development and child labour rates across various nations. By analyzing data on Gross Domestic Product (GDP) per capita, which measures a country's average income and child labour, the report aims to uncover a potential correlation. In order to develop more targeted solutions to this practice and to ensure a brighter future for all children, it is necessary to understand how economic growth might affect child labour.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, show_col_types = FALSE}
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(tidyr)
+
+# Loading the datasets
+indicator_1 <- read_csv("C:/Users/Surabhi Sunil Kale/OneDrive/Desktop/SEM 2 ASSIGNMENTS/DATA ANALYTICS/unicef_indicator_1 - unicef_indicator_1.csv")
+metadata <- read_csv("C:/Users/Surabhi Sunil Kale/OneDrive/Desktop/SEM 2 ASSIGNMENTS/DATA ANALYTICS/unicef_metadata - unicef_metadata.csv")
+indicator_2 <- read_csv("C:/Users/Surabhi Sunil Kale/OneDrive/Desktop/SEM 2 ASSIGNMENTS/DATA ANALYTICS/unicef_indicator_2 - unicef_indicator_2.csv")
+
+```
+
+## **Global Child Labour Trends**
+
+Taking a closer look in the world map chart at the data on child labour (Indicator 1) paints a concerning picture of the global situation (Global Indicator 1 Rates). Regions like Sub-Saharan Africa and South Asia stand out with particularly high numbers, highlighting the significant challenges these parts of the world face in tackling this issue.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+combined_data <- indicator_1 %>%
+  filter(indicator == "Child labour thresholds (household chores)") %>%
+  inner_join(metadata, by = "alpha_3_code") %>%
+  filter(!is.na(obs_value)) %>%
+  group_by(alpha_3_code) %>%
+  summarize(
+    latest_obs_value = last(obs_value),
+    latest_gdp_per_capita = last(`GDP per capita (constant 2015 US$)`),
+    latest_life_expectancy = last(`Life expectancy at birth, total (years)`),
+    .groups = "drop"
+  )
+# Loading world map data
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+# Joining the combined data with the world map data
+global_data <- world %>%
+  left_join(combined_data, by = c("iso_a3" = "alpha_3_code"))
+
+# Creating the map with ggplot
+map_plot <- ggplot(global_data) +
+  geom_sf(aes(fill = latest_obs_value), color = NA) +  # Fill countries based on 'latest_obs_value'
+  geom_sf_text(aes(label = name), size = 2.5, check_overlap = TRUE) +  # Add country names
+  scale_fill_viridis_c(
+    option = "plasma",
+    na.value = "grey50"
+
+  )  +
+  labs(
+    title = "Global Indicator 1 Rates",
+    subtitle = "Map showing the latest observed Indicator 1 rates by country",
+    fill = "Observed Value"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 14),
+    legend.position = "right",
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.key.width = unit(2, "lines"),
+    legend.key.height = unit(0.5, "lines"),
+    text = element_text(size = 3)  # Adjust text size globally for map
+  )
+
+# Print the map
+print(map_plot)
+```
+
+## **Economic Development and Child Labour**
+
+This scatter-plot with a linear regression line reveals a promising trend (Relationship Between GDP per Capita and Child Labour). Countries with higher Gross Domestic Product (GDP) per capita, which indicates greater economic strength, tend to have lower percentages of child labour. This suggests a potential link between economic prosperity and a decline in the number of children forced to work.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+combined_data <- indicator_1 %>%
+  filter(indicator == "Child labour thresholds (household chores)", !is.na(obs_value)) %>%
+  inner_join(metadata, by = "alpha_3_code") %>%
+  filter(time_period == year) %>%
+  select(alpha_3_code, obs_value, `GDP per capita (constant 2015 US$)`)
+
+# Plotting the scatter plot with a regression line
+scatter_plot <- ggplot(combined_data, aes(x = `GDP per capita (constant 2015 US$)`, y = obs_value)) +
+  geom_point() +  # This adds the scatter plot points
+  geom_smooth(method = "lm", color = "blue") +  # This adds the linear regression line
+  labs(
+    title = "Relationship Between GDP per Capita and Child Labour",
+    x = "GDP per Capita (constant 2015 US$)",
+    y = "Child Labour (%)"
+  ) +
+  theme_minimal()
+
+# Printing the scatter plot
+print(scatter_plot)
+```
+
+## **Spotlight on Countries Struggling with Child Labour**
+
+This bar chart aims to show individual countries with the variance in Indicator values, with nations like Ethiopia, India, and Somalia exhibiting alarmingly high rates (Countries by Indicator Value). This emphasizes the need for targeted interventions in these areas.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+combined_data <- left_join(indicator_1, metadata, by = "alpha_3_code")
+
+# Selecting and sorting data to find the top 10 countries by 'obs_value'
+top_countries <- combined_data %>%
+  arrange(desc(obs_value)) %>%
+  slice_head(n = 2500)  #This code selects the top 10 rows after sorting
+
+bar_graph <- ggplot(top_countries, aes(x = reorder(country.x, obs_value), y = obs_value, fill = country.x)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Countries by Indicator Value",
+    x = "Country",
+    y = "Indicator Value"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Printing the bar graph
+print(bar_graph)
+```
+
+## **Annual Trends and the Path Forward**
+
+This time-series chart investigates annual average observation values for child labor thresholds revealing fluctuations over time (Annual Average Observation Values for Child Labor Thresholds). Such trends underscore the necessity for sustained efforts and consistent policy enforcement to ensure progress is not reversed.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+data1_aggregated <- aggregate(obs_value ~ time_period, data = indicator_1, FUN = mean)
+
+# Plotting the line graph
+ggplot(data1_aggregated, aes(x = time_period, y = obs_value)) +
+  geom_line(color = "blue", size = 1) +  # Add lines
+  geom_point(color = "red", size = 3) +  # Add points
+  labs(title = "Annual Average Observation Values for Child Labour Thresholds (Household Chores)",
+       x = "Year",
+       y = "Average Observation Value") +
+  theme_minimal() + 
+  theme(plot.title = element_text(hjust = 0.5))  # Center the title
+```
+
+## **Gender Disparities**
+
+Lastly, this analysis highlights the disparity between males and females in child labour and percentage of adolescents who smoked cigarettes or used smoked or smokeless tobacco products instances, with a pronounced difference in observation values between both the data-sets. Understanding these disparities is crucial for developing gender-sensitive approaches to eliminate child labour in Indicator 1 and adolescents who smoke which is mentioned in Indicator 2. The bar charts shows that the female child labour is less compared to the higher number of male who smoke.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+avg_obs_value_1 <- indicator_1 %>%
+  filter(sex != "Total") %>%
+  group_by(sex) %>%
+  summarize(Average = mean(obs_value))
+
+avg_obs_value_2 <- indicator_2 %>%
+  filter(sex != "Total") %>%
+  group_by(sex) %>%
+  summarize(Average = mean(obs_value))
+
+# Combining the data into a single data frame for plotting
+comparison_df <- merge(avg_obs_value_1, avg_obs_value_2, by = "sex", suffixes = c(" Dataset 1", " Dataset 2"))
+
+# Reshaping for ggplot2
+comparison_df_long <- tidyr::pivot_longer(comparison_df, cols = -sex, names_to = "Dataset", values_to = "Average")
+
+# Plotting the grouped bar chart
+ggplot(comparison_df_long, aes(x = sex, y = Average, fill = Dataset)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  labs(title = "Comparison of Average Observation Values by Sex Between Two Datasets",
+       x = "Sex",
+       y = "Average Observation Value") +
+  scale_fill_manual(values = c("skyblue", "salmon")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+## **Conclusion**
+
+The interplay between economic growth and child labour incidence is complex. However, data reveals a promising trend as nations develop economically, child labour rates tend to decrease.This suggests that economic empowerment, coupled with strong legal frameworks, can be instrumental in eliminating child labor and offers a path towards a future free from child exploitation.
